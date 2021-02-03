@@ -1,7 +1,6 @@
 import os.path as osp
 
 import mmcv
-import numpy as np
 from PIL import Image
 from tools.process.coco_create import CocoCreator
 
@@ -64,15 +63,6 @@ if __name__ == '__main__':
             h = int(y2 - y1)
             x1 = int(x1)
             x2 = int(x2)
-
-            # rectangles.append(np.array(data[0]['points']).reshape(2, 2))
-            #
-            # tempoints = []
-            # tempoints.extend(data[1]['points'])
-            # tempoints.extend(data[2]['points'])
-            # tempoints.extend(data[3]['points'])
-            # tempoints.extend(data[3]['points'])
-            # points.append(np.array(tempoints).reshape(4, 2))
 
             # bbox + label
             class_id = categories[label_dict[data[0]['label']]]['id']
