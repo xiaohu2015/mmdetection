@@ -8,3 +8,13 @@ python tools/deployment/pytorch2onnx.py \
     --show \
     --verify
 
+python tools/deployment/pytorch2onnx.py \
+    configs/yolo/tinyyolov4_coco.py \
+    tools/work_dirs/tinyyolov4_coco/latest.pth \
+    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210202-data/Image_20210201113428988.jpg \
+    --shape 448 448 \
+    --mean 0 0 0 \
+    --std 255 255 255 \
+    --show \
+    --verify
+
