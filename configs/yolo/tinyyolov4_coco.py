@@ -109,18 +109,18 @@ data = dict(
         img_prefix=data_root + 'images/'))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0005)
+optimizer = dict(type='SGD', lr=0.001, momentum=0.9)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))  # importent
 # learning policy
 lr_config = dict(
     policy='step',
     warmup='linear',
-    warmup_iters=50,  # same as burn-in in darknet
+    warmup_iters=600,  # same as burn-in in darknet importment
     warmup_ratio=0.1,
-    step=[80, 90])
+    step=[120, 180])
 # runtime settings
-total_epochs = 100
-evaluation = dict(interval=1, metric=['bbox'])
+total_epochs = 200
+evaluation = dict(interval=5, metric=['bbox'])
 
 log_config = dict(
     interval=10,
@@ -128,3 +128,6 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
     ])
+
+checkpoint_config = dict(interval=3,max_keep_ckpts=5)
+

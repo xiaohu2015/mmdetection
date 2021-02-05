@@ -1,7 +1,7 @@
 python tools/deployment/pytorch2onnx.py \
     configs/yolo/pyolov3_d53_460_coco.py \
     tools/work_dirs/pyolov3_d53_460_coco/latest.pth \
-    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210202-data/Image_20210201113428988.jpg \
+    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210203-data/Image_20210201113240408.jpg \
     --shape 320 320 \
     --mean 0 0 0 \
     --std 255 255 255 \
@@ -11,7 +11,7 @@ python tools/deployment/pytorch2onnx.py \
 python tools/deployment/pytorch2onnx.py \
     configs/yolo/tinyyolov4_coco.py \
     tools/work_dirs/tinyyolov4_coco/latest.pth \
-    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210202-data/Image_20210201113428988.jpg \
+    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210203-data/Image_20210201113240408.jpg \
     --shape 448 448 \
     --mean 0 0 0 \
     --std 255 255 255 \

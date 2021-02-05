@@ -87,7 +87,7 @@ def _generate_batch_data(image, bboxes, lables, batch_size=5, size=(320, 320)):
 
 if __name__ == '__main__':
 
-    root = '/home/SENSETIME/huanghaian/dataset/project/images/210202-data'
+    root = '/home/SENSETIME/huanghaian/dataset/project/images/210203-data'
 
     img_name_list = glob.glob(root + os.sep + '*')
     img_name_list = list(filter(lambda f: f.find('json') < 0, img_name_list))
