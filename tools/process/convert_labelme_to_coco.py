@@ -48,9 +48,21 @@ if __name__ == '__main__':
         json_path = osp.join(root_path, path)
         json_data = mmcv.load(json_path)
         shapes = json_data['shapes']
-        assert len(shapes) % 5 == 0
 
-        batch_data = _generate_batch_data(shapes, 5)
+        shapes_o = []
+        for shape in shapes:
+            if shape['label'].lower() == 'out-ng':
+                shapes_o.append(shape)
+                shapes_o.append([])
+                shapes_o.append([])
+                shapes_o.append([])
+                shapes_o.append([])
+            else:
+                shapes_o.append(shape)
+
+        assert len(shapes_o) % 5 == 0
+
+        batch_data = _generate_batch_data(shapes_o, 5)
 
         rectangles = []
         labels = []
@@ -65,7 +77,7 @@ if __name__ == '__main__':
             x2 = int(x2)
 
             # bbox + label
-            class_id = categories[label_dict[data[0]['label']]]['id']
+            class_id = categories[label_dict[data[0]['label'].lower()]]['id']
             category_info = {'id': class_id, 'is_crowd': 0}
 
             # 第二步
