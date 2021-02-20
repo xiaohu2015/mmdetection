@@ -15,8 +15,8 @@ def _generate_batch_data(sampler, batch_size=5):
 
 
 if __name__ == '__main__':
-    root_path = '/home/SENSETIME/huanghaian/dataset/project/images'
-    out_dir = '/home/SENSETIME/huanghaian/dataset/project/'
+    root_path = '/home/hha/dataset/project/image11'
+    out_dir = '/home/hha/dataset/project/'
     save_name = 'train.json'
     mmcv.mkdir_or_exist(osp.join(out_dir, 'annotations'))
 
@@ -25,13 +25,8 @@ if __name__ == '__main__':
         'id': 1,
         'name': 'out-ok',
         'supercategory': 'object',
-    }, {
-        'id': 2,
-        'name': 'out-ng',
-        'supercategory': 'object',
     }]
 
-    label_dict = {'out-ok': 0, 'out-ng': 1}
     coco_creater = CocoCreator(
         categories, out_dir=out_dir, save_name=save_name)
 
@@ -48,21 +43,9 @@ if __name__ == '__main__':
         json_path = osp.join(root_path, path)
         json_data = mmcv.load(json_path)
         shapes = json_data['shapes']
+        assert len(shapes) % 5 == 0
 
-        shapes_o = []
-        for shape in shapes:
-            if shape['label'].lower() == 'out-ng':
-                shapes_o.append(shape)
-                shapes_o.append([])
-                shapes_o.append([])
-                shapes_o.append([])
-                shapes_o.append([])
-            else:
-                shapes_o.append(shape)
-
-        assert len(shapes_o) % 5 == 0
-
-        batch_data = _generate_batch_data(shapes_o, 5)
+        batch_data = _generate_batch_data(shapes, 5)
 
         rectangles = []
         labels = []
@@ -77,8 +60,7 @@ if __name__ == '__main__':
             x2 = int(x2)
 
             # bbox + label
-            class_id = categories[label_dict[data[0]['label'].lower()]]['id']
-            category_info = {'id': class_id, 'is_crowd': 0}
+            category_info = {'id': 1, 'is_crowd': 0}
 
             # 第二步
             coco_creater.create_annotation_info(
