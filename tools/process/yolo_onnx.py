@@ -3,6 +3,8 @@ import glob
 import onnxruntime
 import cv2
 import os
+import json
+import time
 
 def resize(image, _resize_size_hw,lb=False):
     h, w = image.shape[:2]
@@ -85,19 +87,53 @@ def _generate_batch_data(image, bboxes, lables, batch_size=5, size=(320, 320)):
         yield [batch_patch, batch_bbox,batch_dict]
 
 
+def writejson(data,path):
+    with open(path, "w", encoding='utf-8') as f:
+        json.dump(data,f)
+
+
+def ConvertBboxToLabelMe(bboxes,lables,num_classes,imagePath,imageHeight,imageWidth):
+    save_data = dict(imageData=None, version="4.5.7", imagePath=imagePath, flags={}, imageHeight=imageHeight,
+                     imageWidth=imageWidth)
+
+    shapes = []
+    for i, (bbox, label) in enumerate(zip(bboxes, lables)):
+        bbox_f = np.array(bbox[:4], np.int32)
+        points = dict(label=num_classes[label], flags={}, group_id=None, shape_type="rectangle")
+        points1=np.array(bbox_f).reshape((-1,2)).astype(np.int32)
+        points1=points1.tolist()
+        points['points']=points1
+        shapes.append(points)
+
+    save_data['shapes']=shapes
+
+    return save_data
+
+
 if __name__ == '__main__':
 
-    root = '/home/SENSETIME/huanghaian/dataset/project/images/210203-data'
+    is_use_cpn=True
+    is_save_yolo_dt=True
+    wait_time=0
+
+    root = '/home/hha/dataset/project/210218-data'
+    if is_save_yolo_dt:
+        save_root='/home/hha/dataset/project/210218-data-pred'
+        if not os.path.exists(save_root):
+            os.makedirs(save_root)
 
     img_name_list = glob.glob(root + os.sep + '*')
     img_name_list = list(filter(lambda f: f.find('json') < 0, img_name_list))
 
     ort_session = onnxruntime.InferenceSession("../../tmp.onnx")
-    cpn_session = onnxruntime.InferenceSession("../../cpn.onnx")
-    num_classes = ['ok', 'ng']
+    if is_use_cpn:
+        cpn_session = onnxruntime.InferenceSession("../../cpn.onnx")
+    num_classes = ['out-ok', 'out-ng']
 
     for img_path in img_name_list:
         img = cv2.imread(img_path)
+        imageHeight = img.shape[0]
+        imageWidth = img.shape[1]
         image_copy = img.copy()
         cpn_img = image_copy / 255
         img, para_dict = resize(img, (448, 448),lb=True)
@@ -114,44 +150,49 @@ if __name__ == '__main__':
         index = bboxes[:, 4] > 0.1
         bboxes = bboxes[index]
 
-        g_batch_data = _generate_batch_data(cpn_img, bboxes, lables,batch_size=32, size=(320, 320))
+        if is_use_cpn:
+            start=time.time()
+            g_batch_data = _generate_batch_data(cpn_img, bboxes, lables,batch_size=32, size=(256, 256))
 
-        for batch in g_batch_data:
-            batch_patch, batch_bbox, batch_dict=batch
-            batch_patch=np.array(batch_patch)
+            for batch in g_batch_data:
+                batch_patch, batch_bbox, batch_dict=batch
+                batch_patch=np.array(batch_patch)
 
-            ort_inputs = {cpn_session.get_inputs()[0].name: batch_patch}
-            array_bcwh = cpn_session.run(None, ort_inputs)[0]  # b,c,h,w
+                infer_time=time.time()
+                ort_inputs = {cpn_session.get_inputs()[0].name: batch_patch}
+                array_bcwh = cpn_session.run(None, ort_inputs)[0]  # b,c,h,w
+                print('cpn infer time={}s'.format(time.time() - infer_time),'batch={}'.format(batch_patch.shape[0]))
 
-            h, w = array_bcwh.shape[2], array_bcwh.shape[3]
-            array_bcwh = np.reshape(array_bcwh, [array_bcwh.shape[0], array_bcwh.shape[1], -1])
-            index = np.argmax(array_bcwh, axis=2)
-            y, x = np.unravel_index(index, (h, w))
-            pts_loc_bxcx2 = np.stack([x, y], axis=2).astype(np.float32)
-            pts_bxcx1 = np.max(array_bcwh, axis=2)[..., None]
+                h, w = array_bcwh.shape[2], array_bcwh.shape[3]
+                array_bcwh = np.reshape(array_bcwh, [array_bcwh.shape[0], array_bcwh.shape[1], -1])
+                index = np.argmax(array_bcwh, axis=2)
+                y, x = np.unravel_index(index, (h, w))
+                pts_loc_bxcx2 = np.stack([x, y], axis=2).astype(np.float32)
+                pts_bxcx1 = np.max(array_bcwh, axis=2)[..., None]
 
-            pts_loc_bxcx2 *= 4
+                pts_loc_bxcx2 *= 4
 
-            for i,pts_loc_cx2 in enumerate(pts_loc_bxcx2):
-                cpn_para_dict=batch_dict[i]
-                bbox_f=batch_bbox[i]
-                top = cpn_para_dict['pad_tblr'][0]
-                left = cpn_para_dict['pad_tblr'][2]
-                scale = cpn_para_dict['scale']
-                pts_loc_cx2[..., 0] = pts_loc_cx2[..., 0] - left
-                pts_loc_cx2[..., 1] = pts_loc_cx2[..., 1] - top
-                pts_loc_cx2 = pts_loc_cx2 / scale
+                for i,pts_loc_cx2 in enumerate(pts_loc_bxcx2):
+                    cpn_para_dict=batch_dict[i]
+                    bbox_f=batch_bbox[i]
+                    top = cpn_para_dict['pad_tblr'][0]
+                    left = cpn_para_dict['pad_tblr'][2]
+                    scale = cpn_para_dict['scale']
+                    pts_loc_cx2[..., 0] = pts_loc_cx2[..., 0] - left
+                    pts_loc_cx2[..., 1] = pts_loc_cx2[..., 1] - top
+                    pts_loc_cx2 = pts_loc_cx2 / scale
 
-                pts_loc_cx2[..., 0] += bbox_f[0]
-                pts_loc_cx2[..., 1] += bbox_f[1]
+                    pts_loc_cx2[..., 0] += bbox_f[0]
+                    pts_loc_cx2[..., 1] += bbox_f[1]
 
-                pts_loc_cx2 = np.array(pts_loc_cx2, np.int64)
-                for keypoint in pts_loc_cx2:
-                    cv2.circle(image_copy, tuple(keypoint), radius=6, color=(0, 0, 255), thickness=-1)
+                    pts_loc_cx2 = np.array(pts_loc_cx2, np.int64)
+                    for keypoint in pts_loc_cx2:
+                        cv2.circle(image_copy, tuple(keypoint), radius=6, color=(0, 0, 255), thickness=-1)
 
-                # cv2.namedWindow('img', 0)
-                # cv2.imshow('img', image_copy)
-                # cv2.waitKey(0)
+                    # cv2.namedWindow('img', 0)
+                    # cv2.imshow('img', image_copy)
+                    # cv2.waitKey(0)
+            print('cpn total time={}s'.format(time.time()-start))
 
 
         for i,(bbox,label) in enumerate(zip(bboxes,lables)):
@@ -165,4 +206,14 @@ if __name__ == '__main__':
 
         cv2.namedWindow('img', 0)
         cv2.imshow('img', image_copy)
-        cv2.waitKey(0)
+        cv2.waitKey(wait_time)
+
+        # 保存了labelme格式
+        if is_save_yolo_dt:
+            name=img_path.split('/')[-1]
+            data=ConvertBboxToLabelMe(bboxes,lables,num_classes,name,imageHeight,imageWidth)
+            writejson(data,os.path.join(save_root,name.replace('jpg','json')))
+
+
+
+

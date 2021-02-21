@@ -21,9 +21,60 @@ python tools/deployment/pytorch2onnx.py \
 
 ../../configs/yolo/tinyyolov4_coco.py
     ../../tools/work_dirs/tinyyolov4_coco/latest.pth
-    --test-img /home/SENSETIME/huanghaian/dataset/project/images/210218-data/Image_20210209113326159.jpg
+    --test-img /home/hha/dataset/project/images/210218-data/Image_20210209113334519.jpg
     --shape 448 448
     --mean 0 0 0
     --std 255 255 255
     --show
     --verify
+
+
+../configs/yolo/tinyyolov4_coco.py
+../configs/yolo/tinyyolov4_coco.py ../tools/work_dirs/tinyyolov4_coco/latest.pth --eval bbox --show
+
+
+大模型
+cpn infer time=2.5951993465423584s batch=32
+cpn infer time=0.7136571407318115s batch=9
+cpn total time=3.404855966567993s
+cpn infer time=2.4205636978149414s batch=32
+cpn infer time=0.9839956760406494s batch=13
+cpn total time=3.482731819152832s
+cpn infer time=2.4174578189849854s batch=32
+cpn infer time=0.7687501907348633s batch=10
+cpn total time=3.260063409805298s
+cpn infer time=2.5210843086242676s batch=32
+cpn infer time=0.7543766498565674s batch=10
+cpn total time=3.3920159339904785s
+cpn infer time=2.4368393421173096s batch=32
+cpn infer time=0.7637057304382324s batch=10
+cpn total time=3.2719168663024902s
+cpn infer time=2.4177238941192627s batch=32
+cpn infer time=0.8446040153503418s batch=11
+cpn total time=3.3538007736206055s
+cpn infer time=2.4079363346099854s batch=32
+cpn infer time=0.6867315769195557s batch=9
+cpn total time=3.1800363063812256s
+cpn infer time=2.423139810562134s batch=32
+cpn infer time=0.6841208934783936s batch=9
+cpn total time=3.1753623485565186s
+cpn infer time=2.472219944000244s batch=32
+cpn infer time=0.791330099105835s batch=10
+cpn total time=3.3509161472320557s
+cpn infer time=2.4390132427215576s batch=32
+cpn infer time=1.1419751644134521s batch=15
+cpn total time=3.6778481006622314s
+cpn infer time=2.4743947982788086s batch=32
+cpn infer time=0.9102151393890381s batch=12
+cpn total time=3.471961498260498s
+
+小模型：
+cpn infer time=0.13776350021362305s batch=32
+cpn infer time=0.03238415718078613s batch=9
+cpn total time=0.2145068645477295s
+cpn infer time=0.14085674285888672s batch=32
+cpn infer time=0.05050325393676758s batch=13
+cpn total time=0.23727011680603027s
+cpn infer time=0.14906549453735352s batch=32
+cpn infer time=0.03891587257385254s batch=10
+cpn total time=0.24593448638916016s

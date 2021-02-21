@@ -98,7 +98,7 @@ def show_coco(data_root,
 
 if __name__ == '__main__':
     # 和cfg里面设置一样 coco
-    data_root = '/home/SENSETIME/huanghaian/dataset/project/'
+    data_root = '/home/hha/dataset/project/'
     ann_file = data_root + 'annotations/train.json'
     img_prefix = data_root + 'images/'
     show_coco(data_root, ann_file, img_prefix)
