@@ -36,10 +36,10 @@ def pytorch2onnx(config_path,
     model, tensor_data = generate_inputs_and_wrap_model(
         config_path, checkpoint_path, input_config)
     output_names = ['boxes']
-    if model.with_bbox:
-        output_names.append('labels')
-    if model.with_mask:
-        output_names.append('masks')
+    # if model.with_bbox:
+    #     output_names.append('labels')
+    # if model.with_mask:
+    #     output_names.append('masks')
 
     torch.onnx.export(
         model,

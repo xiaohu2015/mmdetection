@@ -112,11 +112,11 @@ def ConvertBboxToLabelMe(bboxes,lables,num_classes,imagePath,imageHeight,imageWi
 
 if __name__ == '__main__':
 
-    is_use_cpn=True
-    is_save_yolo_dt=True
+    is_use_cpn=False
+    is_save_yolo_dt=False
     wait_time=0
 
-    root = '/home/hha/dataset/project/210218-data'
+    root = '/home/hha/dataset/project/images/210305-data'
     if is_save_yolo_dt:
         save_root='/home/hha/dataset/project/210218-data-pred'
         if not os.path.exists(save_root):
@@ -141,9 +141,10 @@ if __name__ == '__main__':
         img = np.float32(img)
         img1 = np.transpose(img, (2, 0, 1))[None]
         ort_inputs = {ort_session.get_inputs()[0].name: img1}
-        ort_outs = ort_session.run(None, ort_inputs)
-        bboxes = ort_outs[0]  # nx5
-        lables = ort_outs[1]  # nx1
+        ort_outs = ort_session.run(None, ort_inputs)[0]
+
+        bboxes = ort_outs[:,:5]  # nx5
+        lables = ort_outs[:,-1]  # nx1
 
         # revert to orig img
         bboxes = _convert_origshape(bboxes, para_dict)  # nx4

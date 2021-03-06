@@ -177,6 +177,7 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
             scale_factor = img_metas[img_id]['scale_factor']
             proposals = self._get_bboxes_single(pred_maps_list, scale_factor,
                                                 cfg, rescale, with_nms)
+            # proposals=torch.cat([proposals[0],proposals[1].unsqueeze(1)],dim=1)
             result_list.append(proposals)
         return result_list
 
@@ -290,6 +291,7 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
                 cfg.nms,
                 cfg.max_per_img,
                 score_factors=multi_lvl_conf_scores)
+            # det_labels=det_labels.float()
             return det_bboxes, det_labels
         else:
             return (multi_lvl_bboxes, multi_lvl_cls_scores,
