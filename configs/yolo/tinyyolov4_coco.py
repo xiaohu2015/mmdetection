@@ -13,7 +13,8 @@ model = dict(
         num_classes=2,
         anchor_generator=dict(
             type='YOLOAnchorGenerator',
-            base_sizes=[[[25, 24], [27, 23], [27, 25], [29, 24], [29, 25], [30, 28]]],
+            base_sizes=[[[29, 28], [31, 30], [30, 35], [31, 35], [35, 32],
+                         [36, 35]]],
             strides=[16]),
         bbox_coder=dict(type='YOLOBBoxCoder'),
         featmap_strides=[16],
