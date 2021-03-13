@@ -68,8 +68,11 @@ def _generate_batch_data(image, bboxes, lables, batch_size=5, size=(320, 320)):
     batch_bbox=[]
     batch_dict=[]
     for i,(bbox,label) in enumerate(zip(bboxes,lables)):
+        # print(bbox,label)
         if np.any(bbox < 0): continue
-        if label == 1: continue
+        if int(label) == 1:
+            # print('xxxxx')
+            continue
         bbox_f = np.array(bbox[:4], np.int32)
         patch = image[bbox_f[1]:bbox_f[3], bbox_f[0]:bbox_f[2]]
         img, cpn_para_dict = resize(patch, size)
@@ -109,14 +112,13 @@ def ConvertBboxToLabelMe(bboxes,lables,num_classes,imagePath,imageHeight,imageWi
 
     return save_data
 
-
 if __name__ == '__main__':
 
-    is_use_cpn=False
+    is_use_cpn=True
     is_save_yolo_dt=False
     wait_time=0
 
-    root = '/home/hha/dataset/project/images/210305-data'
+    root = '/home/hha/dataset/project/ok'
     if is_save_yolo_dt:
         save_root='/home/hha/dataset/project/210218-data-pred'
         if not os.path.exists(save_root):
@@ -131,25 +133,40 @@ if __name__ == '__main__':
     num_classes = ['out-ok', 'out-ng']
 
     for img_path in img_name_list:
+        if img_path.find('ok/2021_03_06_11_24_06-1.jpg')<0:
+            continue
         img = cv2.imread(img_path)
         imageHeight = img.shape[0]
         imageWidth = img.shape[1]
         image_copy = img.copy()
         cpn_img = image_copy / 255
-        img, para_dict = resize(img, (448, 448),lb=True)
-        img = img / 255
-        img = np.float32(img)
+
+        # must used it
+        img = cv2.resize(img, (448, 320), interpolation=cv2.INTER_LINEAR)
+        w_scale = 448 / image_copy.shape[1]
+        h_scale = 320 / image_copy.shape[0]
+
+        img = np.float32(img) / 255
+        # must used it
+        cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
+
+
         img1 = np.transpose(img, (2, 0, 1))[None]
         ort_inputs = {ort_session.get_inputs()[0].name: img1}
         ort_outs = ort_session.run(None, ort_inputs)[0]
 
         bboxes = ort_outs[:,:5]  # nx5
         lables = ort_outs[:,-1]  # nx1
+        # ort_outs = ort_session.run(None, ort_inputs)
+        #
+        # bboxes = ort_outs[0]  # nx5
+        # lables = ort_outs[1]  # nx1
 
         # revert to orig img
-        bboxes = _convert_origshape(bboxes, para_dict)  # nx4
-        index = bboxes[:, 4] > 0.1
+        bboxes[:, :4] /= np.array([w_scale, h_scale,w_scale, h_scale])
+        index = bboxes[:, 4] > 0.3
         bboxes = bboxes[index]
+
 
         if is_use_cpn:
             start=time.time()
@@ -188,7 +205,7 @@ if __name__ == '__main__':
 
                     pts_loc_cx2 = np.array(pts_loc_cx2, np.int64)
                     for keypoint in pts_loc_cx2:
-                        cv2.circle(image_copy, tuple(keypoint), radius=6, color=(0, 0, 255), thickness=-1)
+                        cv2.circle(image_copy, tuple(keypoint), radius=16, color=(0, 0, 255), thickness=-1)
 
                     # cv2.namedWindow('img', 0)
                     # cv2.imshow('img', image_copy)
@@ -204,6 +221,8 @@ if __name__ == '__main__':
             else:
                 image_copy = cv2.rectangle(image_copy, (bbox_f[0], bbox_f[1]), (bbox_f[2], bbox_f[3]), (0, 0, 255),
                                            5)
+            cv2.putText(image_copy, str(bbox[4]), (bbox_f[0], bbox_f[1] - 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 255), thickness=3, lineType=cv2.LINE_AA)
 
         cv2.namedWindow('img', 0)
         cv2.imshow('img', image_copy)
