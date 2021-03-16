@@ -5,7 +5,6 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import ConvModule, normal_init
 from mmcv.runner import force_fp32
 
 from mmdet.core import (build_anchor_generator, build_assigner,
@@ -47,7 +46,12 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
                  test_cfg=None):
         super(TinyYolov4Head, self).__init__()
 
-        self.num_classes = num_classes
+        self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
+        if self.use_sigmoid_cls:
+            self.num_classes = num_classes
+        else:
+            self.num_classes = num_classes + 1
+
         self.featmap_strides = featmap_strides
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -234,8 +238,12 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
                                                pred_map[..., :4], stride)
             # conf and cls
             conf_pred = torch.sigmoid(pred_map[..., 4]).view(-1)
-            cls_pred = torch.sigmoid(pred_map[..., 5:]).view(
-                -1, self.num_classes)  # Cls pred one-hot.
+            if self.use_sigmoid_cls:
+                cls_pred = torch.sigmoid(pred_map[..., 5:]).view(
+                    -1, self.num_classes)  # Cls pred one-hot.
+            else:
+                cls_pred = torch.softmax(pred_map[..., 5:],dim=-1).view(
+                    -1, self.num_classes)
 
             # Filtering out all predictions with conf < conf_thr
             conf_thr = cfg.get('conf_thr', -1)
@@ -277,10 +285,12 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
 
         # In mmdet 2.x, the class_id for background is num_classes.
         # i.e., the last column.
-        padding = multi_lvl_cls_scores.new_zeros(multi_lvl_cls_scores.shape[0],
-                                                 1)
-        multi_lvl_cls_scores = torch.cat([multi_lvl_cls_scores, padding],
-                                         dim=1)
+
+        if self.use_sigmoid_cls:
+            padding = multi_lvl_cls_scores.new_zeros(multi_lvl_cls_scores.shape[0],
+                                                     1)
+            multi_lvl_cls_scores = torch.cat([multi_lvl_cls_scores, padding],
+                                             dim=1)
 
         # Support exporting to onnx without nms
         if with_nms and cfg.get('nms', None) is not None:
@@ -385,7 +395,11 @@ class TinyYolov4Head(BaseDenseHead, BBoxTestMixin):
         target_conf = target_map[..., 4]
         target_label = target_map[..., 5:]
 
-        loss_cls = self.loss_cls(pred_label, target_label, weight=pos_mask)
+        if self.use_sigmoid_cls:
+            loss_cls = self.loss_cls(pred_label, target_label, weight=pos_mask)
+        else:
+            target_label=torch.argmax(target_label,dim=-1)
+            loss_cls = self.loss_cls(pred_label.view(-1,3), target_label.view(-1), weight=pos_mask.view(-1))
         loss_conf = self.loss_conf(
             pred_conf, target_conf, weight=pos_and_neg_mask)
         loss_xy = self.loss_xy(pred_xy, target_xy, weight=pos_mask)
