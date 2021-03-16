@@ -118,7 +118,7 @@ if __name__ == '__main__':
     is_save_yolo_dt=False
     wait_time=0
 
-    root = '/home/hha/dataset/project/ok'
+    root = '/home/hha/dataset/project/210316-errordata'
     if is_save_yolo_dt:
         save_root='/home/hha/dataset/project/210218-data-pred'
         if not os.path.exists(save_root):
@@ -133,8 +133,8 @@ if __name__ == '__main__':
     num_classes = ['out-ok', 'out-ng']
 
     for img_path in img_name_list:
-        if img_path.find('ok/2021_03_06_11_24_06-1.jpg')<0:
-            continue
+        # if img_path.find('ok/2021_03_06_11_24_06-1.jpg')<0:
+        #     continue
         img = cv2.imread(img_path)
         imageHeight = img.shape[0]
         imageWidth = img.shape[1]

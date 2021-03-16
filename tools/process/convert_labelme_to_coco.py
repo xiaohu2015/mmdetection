@@ -38,7 +38,7 @@ if __name__ == '__main__':
         categories, out_dir=out_dir, save_name=save_name)
 
     segmentation_id = 1
-    paths = mmcv.scandir(root_path, '.json', recursive=True)
+    paths = mmcv.scandir(root_path, 'json', recursive=True)
     for i, path in enumerate(paths):
         image_id = i + 1  # 手动设置
 

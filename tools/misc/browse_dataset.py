@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument(
         '--show-interval',
         type=float,
-        default=2,
+        default=0,
         help='the interval of show (s)')
     args = parser.parse_args()
     return args
@@ -43,7 +43,7 @@ def retrieve_data_cfg(config_path, skip_type):
 
     return cfg
 
-
+import numpy as np
 def main():
     args = parse_args()
     cfg = retrieve_data_cfg(args.config, args.skip_type)
@@ -60,9 +60,9 @@ def main():
         gt_masks = item.get('gt_masks', None)
         if gt_masks is not None:
             gt_masks = mask2ndarray(gt_masks)
-
+        print(item['img'].shape)
         imshow_det_bboxes(
-            item['img'],
+            item['img'].astype(np.uint8),
             item['gt_bboxes'],
             item['gt_labels'],
             gt_masks,
