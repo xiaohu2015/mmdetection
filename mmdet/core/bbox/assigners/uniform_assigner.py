@@ -90,15 +90,16 @@ class UniformAssigner(BaseAssigner):
         target_classes_o = target_classes_o.to(assigned_gt_inds.device)
 
         # TODO
-        unique_src_idx = torch.unique(indexes)
-        target_classes = torch.zeros_like(
-            unique_src_idx, device=indexes.device)
-        for i, idx in enumerate(unique_src_idx):
-            index = indexes == idx
-            max_index = torch.argmax(pos_ious[index])
-            target_classes[i] = target_classes_o[index][max_index]
-        assigned_gt_inds[unique_src_idx] = target_classes.to(
-            assigned_gt_inds.device)
+        # unique_src_idx = torch.unique(indexes)
+        # target_classes = torch.zeros_like(
+        #     unique_src_idx, device=indexes.device)
+        # for i, idx in enumerate(unique_src_idx):
+        #     index = indexes == idx
+        #     max_index = torch.argmax(pos_ious[index])
+        #     target_classes[i] = target_classes_o[index][max_index]
+        # assigned_gt_inds[unique_src_idx] = target_classes.to(
+        #     assigned_gt_inds.device)
+        assigned_gt_inds[indexes]=target_classes_o
 
         if gt_labels is not None:
             assigned_labels = assigned_gt_inds.new_full((num_bboxes, ), -1)
@@ -110,8 +111,12 @@ class UniformAssigner(BaseAssigner):
         else:
             assigned_labels = None
 
-        return AssignResult(
+        assign_result=AssignResult(
             num_gts,
             assigned_gt_inds,
             anchor_max_overlaps,
             labels=assigned_labels)
+        assign_result.set_extra_property('pos_idx',~pos_ignore_idx)
+        assign_result.set_extra_property('pos_predicted_boxes',bbox_pred[indexes])
+        assign_result.set_extra_property('target_boxes',gt_bboxes[pos_gt_index])
+        return assign_result
