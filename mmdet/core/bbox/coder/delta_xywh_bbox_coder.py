@@ -131,7 +131,7 @@ def bbox2delta(proposals, gt, means=(0., 0., 0., 0.), stds=(1., 1., 1., 1.)):
 
 
 @mmcv.jit(coderize=True)
-def delta2bbox(rois,
+def delta2bbox1(rois,
                deltas,
                means=(0., 0., 0., 0.),
                stds=(1., 1., 1., 1.),
@@ -208,7 +208,7 @@ def delta2bbox(rois,
     dy_height = ph * dy
     max_ratio = np.abs(np.log(wh_ratio_clip))
 
-    if 0:
+    if 1:
         ctr_clamp = 32
         dx_width = torch.clamp(dx_width,
                                max=ctr_clamp,
@@ -252,3 +252,60 @@ def delta2bbox(rois,
         bboxes = torch.where(bboxes > max_xy, max_xy, bboxes)
 
     return bboxes
+
+
+def delta2bbox(rois,
+               deltas,
+               means=(0., 0., 0., 0.),
+               stds=(1., 1., 1., 1.),
+               max_shape=None,
+               wh_ratio_clip=16 / 1000,
+               clip_border=True):
+    """
+    Apply transformation `deltas` (dx, dy, dw, dh) to `boxes`.
+
+    Args:
+        deltas (Tensor): transformation deltas of shape (N, k*4),
+            where k >= 1. deltas[i] represents k potentially different
+            class-specific box transformations for the single box boxes[i].
+        boxes (Tensor): boxes to transform, of shape (N, 4)
+    """
+    deltas = deltas.float()  # ensure fp32 for decoding precision
+    boxes = rois.to(deltas.dtype)
+
+    widths = boxes[..., 2] - boxes[..., 0]
+    heights = boxes[..., 3] - boxes[..., 1]
+    ctr_x = boxes[..., 0] + 0.5 * widths
+    ctr_y = boxes[..., 1] + 0.5 * heights
+
+    dx = deltas[..., 0::4]
+    dy = deltas[..., 1::4]
+    dw = deltas[..., 2::4]
+    dh = deltas[..., 3::4]
+
+    # Prevent sending too large values into torch.exp()
+    dx_width = dx * widths[..., None]
+    dy_height = dy * heights[..., None]
+
+    max_ratio = np.abs(np.log(wh_ratio_clip))
+    ctr_clamp = 32
+    dx_width = torch.clamp(dx_width,
+                           max=ctr_clamp,
+                           min=-ctr_clamp)
+    dy_height = torch.clamp(dy_height,
+                            max=ctr_clamp,
+                            min=-ctr_clamp)
+    dw = torch.clamp(dw, max=max_ratio)
+    dh = torch.clamp(dh, max=max_ratio)
+
+    pred_ctr_x = dx_width + ctr_x[..., None]
+    pred_ctr_y = dy_height + ctr_y[..., None]
+    pred_w = torch.exp(dw) * widths[..., None]
+    pred_h = torch.exp(dh) * heights[..., None]
+
+    x1 = pred_ctr_x - 0.5 * pred_w
+    y1 = pred_ctr_y - 0.5 * pred_h
+    x2 = pred_ctr_x + 0.5 * pred_w
+    y2 = pred_ctr_y + 0.5 * pred_h
+    pred_boxes = torch.stack((x1, y1, x2, y2), dim=-1)
+    return pred_boxes.reshape(deltas.shape)
