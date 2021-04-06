@@ -311,6 +311,6 @@ def delta2bbox(rois,
 
     pred_boxed = pred_boxes.reshape(deltas.shape)
 
-    pred_boxed1 = delta2bbox1(rois, deltas)
-    assert torch.allclose(pred_boxed, pred_boxed1)
+    # pred_boxed1 = delta2bbox1(rois, deltas)
+    # assert torch.allclose(pred_boxed, pred_boxed1)
     return pred_boxed

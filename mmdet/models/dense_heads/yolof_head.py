@@ -755,9 +755,8 @@ class YOLOFHead(AnchorHead):
         normalized_cls_score = normalized_cls_score.view(N, -1, H, W)
         return normalized_cls_score, bbox_reg
 
-    @torch.no_grad()
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss1(self,
+    def loss(self,
               cls_scores,
               bbox_preds,
               gt_bboxes,
@@ -839,7 +838,8 @@ class YOLOFHead(AnchorHead):
             pos_predicted_boxes_list,
             target_boxes_list,
             num_total_samples=num_total_samples)
-        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox), num_total_samples
+        # return dict(loss_cls=losses_cls, loss_bbox=losses_bbox), num_total_samples
+        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
                     bbox_targets, bbox_weights, pos_idxs, pos_predicted_boxes, target_boxes, num_total_samples):
@@ -1079,7 +1079,7 @@ class YOLOFHead(AnchorHead):
                 neg_inds, sampling_result, pos_idx, pos_predicted_boxes, target_boxes)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss(self,
+    def loss1(self,
              cls_scores,
              bbox_preds,
              gt_bboxes,
