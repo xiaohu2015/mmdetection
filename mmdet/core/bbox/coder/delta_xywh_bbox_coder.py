@@ -132,12 +132,12 @@ def bbox2delta(proposals, gt, means=(0., 0., 0., 0.), stds=(1., 1., 1., 1.)):
 
 @mmcv.jit(coderize=True)
 def delta2bbox1(rois,
-               deltas,
-               means=(0., 0., 0., 0.),
-               stds=(1., 1., 1., 1.),
-               max_shape=None,
-               wh_ratio_clip=16 / 1000,
-               clip_border=True):
+                deltas,
+                means=(0., 0., 0., 0.),
+                stds=(1., 1., 1., 1.),
+                max_shape=None,
+                wh_ratio_clip=16 / 1000,
+                clip_border=True):
     """Apply deltas to shift/scale base boxes.
 
     Typically the rois are anchor or proposed bounding boxes and the deltas are
@@ -308,4 +308,9 @@ def delta2bbox(rois,
     x2 = pred_ctr_x + 0.5 * pred_w
     y2 = pred_ctr_y + 0.5 * pred_h
     pred_boxes = torch.stack((x1, y1, x2, y2), dim=-1)
-    return pred_boxes.reshape(deltas.shape)
+
+    pred_boxed = pred_boxes.reshape(deltas.shape)
+
+    pred_boxed1 = delta2bbox1(rois, deltas)
+    assert torch.allclose(pred_boxed, pred_boxed1)
+    return pred_boxed

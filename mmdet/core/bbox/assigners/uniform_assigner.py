@@ -99,7 +99,16 @@ class UniformAssigner(BaseAssigner):
         #     target_classes[i] = target_classes_o[index][max_index]
         # assigned_gt_inds[unique_src_idx] = target_classes.to(
         #     assigned_gt_inds.device)
-        assigned_gt_inds[indexes]=target_classes_o
+
+        # GPU
+        # assigned_gt_inds[indexes] = target_classes_o
+
+        # CPU
+        assigned_gt_inds = assigned_gt_inds.cpu()
+        target_classes_o = target_classes_o.cpu()
+        indexes = indexes.cpu()
+        assigned_gt_inds[indexes] = target_classes_o
+        assigned_gt_inds = assigned_gt_inds.to(pos_gt_index.device)
 
         if gt_labels is not None:
             assigned_labels = assigned_gt_inds.new_full((num_bboxes, ), -1)
