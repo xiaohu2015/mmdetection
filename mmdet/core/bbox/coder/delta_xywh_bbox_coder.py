@@ -131,7 +131,7 @@ def bbox2delta(proposals, gt, means=(0., 0., 0., 0.), stds=(1., 1., 1., 1.)):
 
 
 @mmcv.jit(coderize=True)
-def delta2bbox1(rois,
+def delta2bbox(rois,
                 deltas,
                 means=(0., 0., 0., 0.),
                 stds=(1., 1., 1., 1.),
@@ -208,7 +208,7 @@ def delta2bbox1(rois,
     dy_height = ph * dy
     max_ratio = np.abs(np.log(wh_ratio_clip))
 
-    if 1:
+    if 0:
         ctr_clamp = 32
         dx_width = torch.clamp(dx_width,
                                max=ctr_clamp,
@@ -254,7 +254,7 @@ def delta2bbox1(rois,
     return bboxes
 
 
-def delta2bbox(rois,
+def delta2bbox1(rois,
                deltas,
                means=(0., 0., 0., 0.),
                stds=(1., 1., 1., 1.),
