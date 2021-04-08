@@ -1035,7 +1035,7 @@ class YOLOFHead(AnchorHead):
 
         assign_result = self.assigner.assign(
             decoder_bbox_preds, anchors, gt_bboxes, gt_bboxes_ignore,
-            gt_labels)
+            None if self.sampling else gt_labels)
 
         # TODO
         if False and VisualHelper is not None:
