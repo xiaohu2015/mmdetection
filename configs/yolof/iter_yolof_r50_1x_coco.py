@@ -74,9 +74,9 @@ lr_config = dict(
     warmup_ratio=0.00066667,
     step=[15000, 20000])
 runner = dict(_delete_=True, type='IterBasedRunner', max_iters=22500)
-checkpoint_config = dict(interval=2000)
-evaluation = dict(interval=5000)
-log_config = dict(interval=19)
+checkpoint_config = dict(interval=2500)
+evaluation = dict(interval=4500)
+log_config = dict(interval=20)
 
 # use caffe img_norm
 img_norm_cfg = dict(
