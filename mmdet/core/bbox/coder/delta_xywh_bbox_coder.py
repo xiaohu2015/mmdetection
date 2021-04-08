@@ -131,7 +131,7 @@ def bbox2delta(proposals, gt, means=(0., 0., 0., 0.), stds=(1., 1., 1., 1.)):
 
 
 @mmcv.jit(coderize=True)
-def delta2bbox(rois,
+def delta2bbox1(rois,
                 deltas,
                 means=(0., 0., 0., 0.),
                 stds=(1., 1., 1., 1.),
@@ -254,7 +254,7 @@ def delta2bbox(rois,
     return bboxes
 
 
-def delta2bbox1(rois,
+def delta2bbox(rois,
                deltas,
                means=(0., 0., 0., 0.),
                stds=(1., 1., 1., 1.),

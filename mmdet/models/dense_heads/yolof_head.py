@@ -265,9 +265,11 @@ class UniformMatcher(nn.Module):
         #                        k=self.match_times,
         #                        dim=0,
         #                        largest=False)[1]
-        # x = C.split(sizes, -1)[0]
-        # x = x[0]
-        # print(x)
+        # print(indices11)
+        # indices11 = torch.topk(C.split(sizes, -1)[1][1],
+        #                        k=self.match_times,
+        #                        dim=0,
+        #                        largest=False)[1]
         # print(indices11)
         # positive indices when matching anchor boxes and gt boxes
         indices1 = [
@@ -755,8 +757,9 @@ class YOLOFHead(AnchorHead):
         normalized_cls_score = normalized_cls_score.view(N, -1, H, W)
         return normalized_cls_score, bbox_reg
 
+    @torch.no_grad()
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss(self,
+    def loss1(self,
               cls_scores,
               bbox_preds,
               gt_bboxes,
@@ -838,8 +841,7 @@ class YOLOFHead(AnchorHead):
             pos_predicted_boxes_list,
             target_boxes_list,
             num_total_samples=num_total_samples)
-        # return dict(loss_cls=losses_cls, loss_bbox=losses_bbox), num_total_samples
-        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
+        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox), num_total_samples
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
                     bbox_targets, bbox_weights, pos_idxs, pos_predicted_boxes, target_boxes, num_total_samples):
@@ -872,11 +874,27 @@ class YOLOFHead(AnchorHead):
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
-        loss_cls = self.loss_cls(
-            cls_score, labels, label_weights, avg_factor=num_total_samples)
+
+        # ll = labels[label_weights > 0]
+        # ll = ll[ll != 80]
+        # print('---l', ll)
+
+        # cls loss
+        gt_classes_target = torch.zeros_like(cls_score)
+        valid_idxs = (label_weights > 0) & (labels != 80)
+        gt_classes_target[valid_idxs, labels[valid_idxs]] = 1
+        loss_cls = sigmoid_focal_loss(
+            cls_score[label_weights > 0],
+            gt_classes_target[label_weights > 0],
+            alpha=0.25,
+            gamma=2.0,
+            reduction="sum",
+        )
+        loss_cls = loss_cls / num_total_samples
+        # loss_cls = self.loss_cls(
+        #     cls_score, labels, label_weights, avg_factor=num_total_samples)
 
         # regression loss
-
         loss_bbox = self.loss_bbox(
             pos_predicted_boxes,
             target_boxes,
@@ -984,10 +1002,10 @@ class YOLOFHead(AnchorHead):
         res = (labels_list, label_weights_list, bbox_targets_list,
                bbox_weights_list, num_total_pos, num_total_neg)
         if return_sampling_results:
-            res = res + (sampling_results_list, )
+            res = res + (sampling_results_list,)
 
         for i, r in enumerate(rest_results):  # user-added return values
-            rest_results[i] = [torch.cat(r,0)]
+            rest_results[i] = [torch.cat(r, 0)]
 
         return res + tuple(rest_results)
 
@@ -1010,14 +1028,14 @@ class YOLOFHead(AnchorHead):
         # anchors = flat_anchors[inside_flags, :]
         bbox_preds = bbox_preds.reshape(-1, 4)
         # bbox_preds = bbox_preds[inside_flags, :]
-        anchors=flat_anchors
+        anchors = flat_anchors
 
         # decoded bbox
         decoder_bbox_preds = self.bbox_coder.decode(anchors, bbox_preds)
 
         assign_result = self.assigner.assign(
             decoder_bbox_preds, anchors, gt_bboxes, gt_bboxes_ignore,
-            None if self.sampling else gt_labels)
+            gt_labels)
 
         # TODO
         if False and VisualHelper is not None:
@@ -1030,21 +1048,22 @@ class YOLOFHead(AnchorHead):
             print('单张图片中正样本anchor个数', len(gt_inds))
             show_pos_anchor(img_meta, gt_anchors, gt_bboxes)
 
-        pos_idx=assign_result.get_extra_property('pos_idx')
-        pos_predicted_boxes=assign_result.get_extra_property('pos_predicted_boxes')
-        target_boxes=assign_result.get_extra_property('target_boxes')
+        pos_idx = assign_result.get_extra_property('pos_idx')
+        pos_predicted_boxes = assign_result.get_extra_property('pos_predicted_boxes')
+        target_boxes = assign_result.get_extra_property('target_boxes')
 
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)
         num_valid_anchors = anchors.shape[0]
         bbox_targets = torch.zeros_like(anchors)
         bbox_weights = torch.zeros_like(anchors)
-        labels = anchors.new_full((num_valid_anchors, ),
+        labels = anchors.new_full((num_valid_anchors,),
                                   self.num_classes,
                                   dtype=torch.long)
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
 
         pos_inds = sampling_result.pos_inds
+        # print('---', pos_inds)
         neg_inds = sampling_result.neg_inds
         if len(pos_inds) > 0:
             pos_bbox_targets = sampling_result.pos_gt_bboxes
@@ -1064,22 +1083,11 @@ class YOLOFHead(AnchorHead):
         if len(neg_inds) > 0:
             label_weights[neg_inds] = 1.0
 
-        # map up to original set of anchors
-        # if unmap_outputs:
-        #     num_total_anchors = flat_anchors.size(0)
-        #     labels = unmap(
-        #         labels, num_total_anchors, inside_flags,
-        #         fill=self.num_classes)  # fill bg label
-        #     label_weights = unmap(label_weights, num_total_anchors,
-        #                           inside_flags)
-        #     bbox_targets = unmap(bbox_targets, num_total_anchors, inside_flags)
-        #     bbox_weights = unmap(bbox_weights, num_total_anchors, inside_flags)
-
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
                 neg_inds, sampling_result, pos_idx, pos_predicted_boxes, target_boxes)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss1(self,
+    def loss(self,
              cls_scores,
              bbox_preds,
              gt_bboxes,
@@ -1105,9 +1113,7 @@ class YOLOFHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
         self.i += 1
-        print('==============================')
-        loss2, num_foreground = self.loss1(cls_scores, bbox_preds, gt_bboxes, gt_labels, img_metas, gt_bboxes_ignore)
-        print(f'{self.i} --mm  num_samper={num_foreground},loss={loss2}', flush=True)
+        loss2, num_foreground_mm = self.loss1(cls_scores, bbox_preds, gt_bboxes, gt_labels, img_metas, gt_bboxes_ignore)
 
         num_images = len(cls_scores[0])
         featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores]
@@ -1122,20 +1128,24 @@ class YOLOFHead(AnchorHead):
         pred_anchor_deltas = [permute_to_N_HWA_K(pred_anchor_deltas[0], 4)]
 
         gt_instances = [Instances(gt_bboxes[i], gt_labels[i]) for i in range(num_images)]
-        # gt_instances = [x["instances"].to(self.device) for x in
-        #                 batched_inputs]
 
         indices = self.get_ground_truth(
             anchors, pred_anchor_deltas, gt_instances)
-        losses,num_foreground = self.losses(
+        losses, num_foreground = self.losses(
             indices, gt_instances, anchors,
             pred_logits, pred_anchor_deltas)
-        print(f'd2  num_samper={num_foreground},loss={losses}', flush=True)
-
-        # if self.i == 4:
-        #     print('---------')
-        #     print('---------')
-        #     # raise NotImplementedError
+        if self.i % 10 == 0:
+            print('==============================')
+            d2_cls = round(losses['loss_cls'].item(), 4)
+            d2_bbox = round(losses['loss_box_reg'].item(), 4)
+            mm_cls = round(loss2['loss_cls'][0].item(), 4)
+            mm_bbox = round(loss2['loss_bbox'][0].item(), 4)
+            print(
+                f'{self.i} d2_num_samper={num_foreground},mm_num_samper={num_foreground_mm},d2_loss_cls={d2_cls},mm_loss_cls={mm_cls},'
+                f'd2_loss_bbox={d2_bbox},mm_loss_bbox={mm_bbox}', flush=True)
+            assert num_foreground == num_foreground_mm
+            assert d2_cls == mm_cls
+            assert d2_bbox == mm_bbox
         return losses
 
     @torch.no_grad()
@@ -1204,8 +1214,14 @@ class YOLOFHead(AnchorHead):
         gt_classes[ignore_idx] = -1
         target_classes_o = torch.cat(
             [t.gt_classes[J] for t, (_, J) in zip(gt_instances, indices)])
-        target_classes_o[pos_ignore_idx] = -1
 
+        # target_classes_o[pos_ignore_idx] = -1
+        pos_ignore_idx = pos_ignore_idx.cpu()
+        target_classes_o = target_classes_o.cpu()
+        target_classes_o[pos_ignore_idx] = -1
+        pos_ignore_idx = pos_ignore_idx.to(pred_class_logits.device)
+
+        # print(target_classes_o)
         # GPU
         # gt_classes[src_idx] = target_classes_o
 
@@ -1213,12 +1229,12 @@ class YOLOFHead(AnchorHead):
         gt_classes = gt_classes.cpu()
         src_idx = src_idx.cpu()
         target_classes_o = target_classes_o.cpu()
-        # print(target_classes_o)
         gt_classes[src_idx] = target_classes_o
         gt_classes = gt_classes.to(pred_class_logits.device)
 
         valid_idxs = gt_classes >= 0
         foreground_idxs = (gt_classes >= 0) & (gt_classes != self.num_classes)
+        # print(gt_classes[foreground_idxs])
         num_foreground = foreground_idxs.sum()
 
         gt_classes_target = torch.zeros_like(pred_class_logits)
@@ -1247,6 +1263,6 @@ class YOLOFHead(AnchorHead):
             matched_predicted_boxes, target_boxes, reduction="sum")
 
         return {
-            "loss_cls": loss_cls / max(1, num_foreground),
-            "loss_box_reg": loss_box_reg / max(1, num_foreground),
-        }, num_foreground
+                   "loss_cls": loss_cls / max(1, num_foreground),
+                   "loss_box_reg": loss_box_reg / max(1, num_foreground),
+               }, num_foreground
