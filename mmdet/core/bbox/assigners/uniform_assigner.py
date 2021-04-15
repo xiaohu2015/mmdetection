@@ -25,7 +25,8 @@ class UniformAssigner(BaseAssigner):
         self.neg_ignore_thresh = neg_ignore_thresh
         self.iou_calculator = build_iou_calculator(iou_calculator)
 
-    def assign(self, bbox_pred, anchor, gt_bboxes, gt_labels, img_meta):
+    def assign(self, bbox_pred, anchor, gt_bboxes, gt_bboxes_ignore,
+               gt_labels):
         num_gts, num_bboxes = gt_bboxes.size(0), bbox_pred.size(0)
 
         # 1. assign -1 by default
@@ -66,6 +67,7 @@ class UniformAssigner(BaseAssigner):
         # (self.match_times*2) x n
         indexes = torch.cat((index, index1),
                             dim=1).reshape(-1).to(bbox_pred.device)
+        # print('--', index)
 
         pred_overlaps = self.iou_calculator(bbox_pred, gt_bboxes)
         anchor_overlaps = self.iou_calculator(anchor, gt_bboxes)
@@ -87,18 +89,13 @@ class UniformAssigner(BaseAssigner):
 
         target_classes_o = pos_gt_index + 1
         target_classes_o[pos_ignore_idx] = -1
-        target_classes_o = target_classes_o.to(assigned_gt_inds.device)
+        assigned_gt_inds[indexes] = target_classes_o
 
-        # TODO
-        unique_src_idx = torch.unique(indexes)
-        target_classes = torch.zeros_like(
-            unique_src_idx, device=indexes.device)
-        for i, idx in enumerate(unique_src_idx):
-            index = indexes == idx
-            max_index = torch.argmax(pos_ious[index])
-            target_classes[i] = target_classes_o[index][max_index]
-        assigned_gt_inds[unique_src_idx] = target_classes.to(
-            assigned_gt_inds.device)
+        # assigned_gt_inds = assigned_gt_inds.cpu()
+        # indexes = indexes.cpu()
+        # target_classes_o = target_classes_o.cpu()
+        # assigned_gt_inds[indexes] = target_classes_o
+        # assigned_gt_inds = assigned_gt_inds.to(bbox_pred.device)
 
         if gt_labels is not None:
             assigned_labels = assigned_gt_inds.new_full((num_bboxes, ), -1)
@@ -110,8 +107,14 @@ class UniformAssigner(BaseAssigner):
         else:
             assigned_labels = None
 
-        return AssignResult(
+        assign_result = AssignResult(
             num_gts,
             assigned_gt_inds,
             anchor_max_overlaps,
             labels=assigned_labels)
+        assign_result.set_extra_property('pos_idx', ~pos_ignore_idx)
+        assign_result.set_extra_property('pos_predicted_boxes',
+                                         bbox_pred[indexes])
+        assign_result.set_extra_property('target_boxes',
+                                         gt_bboxes[pos_gt_index])
+        return assign_result
