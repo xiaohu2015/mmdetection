@@ -19,6 +19,8 @@ try:
 except ImportError:
     VisualHelper = None
 
+USE_MM = False
+
 
 def levels_to_images(mlvl_tensor):
     """Concat multi-level feature maps by image.
@@ -171,7 +173,6 @@ def giou_loss(
     reduction: str = 'sum',
     eps: float = 1e-7,
 ) -> torch.Tensor:
-
     x1, y1, x2, y2 = boxes1.unbind(dim=-1)
     x1g, y1g, x2g, y2g = boxes2.unbind(dim=-1)
 
@@ -714,14 +715,28 @@ class YOLOFHead(AnchorHead):
         normalized_cls_score = normalized_cls_score.view(N, -1, H, W)
         return normalized_cls_score, bbox_reg
 
+    def loss(self,
+             cls_scores,
+             bbox_preds,
+             gt_bboxes,
+             gt_labels,
+             img_metas,
+             gt_bboxes_ignore=None):
+        if USE_MM:
+            return self.loss_mm(cls_scores, bbox_preds, gt_bboxes, gt_labels,
+                                img_metas, gt_bboxes_ignore)
+        else:
+            return self.loss_d2(cls_scores, bbox_preds, gt_bboxes, gt_labels,
+                                img_metas, gt_bboxes_ignore)
+
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss1(self,
-              cls_scores,
-              bbox_preds,
-              gt_bboxes,
-              gt_labels,
-              img_metas,
-              gt_bboxes_ignore=None):
+    def loss_mm(self,
+                cls_scores,
+                bbox_preds,
+                gt_bboxes,
+                gt_labels,
+                img_metas,
+                gt_bboxes_ignore=None):
         """Compute losses of the head.
 
         Args:
@@ -799,7 +814,7 @@ class YOLOFHead(AnchorHead):
             target_boxes_list,
             num_total_samples=num_total_samples)
         return dict(
-            loss_cls=losses_cls, loss_bbox=losses_bbox), num_total_samples
+            loss_cls=losses_cls, loss_bbox=losses_bbox)  # , num_total_samples
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
                     bbox_targets, bbox_weights, pos_idxs, pos_predicted_boxes,
@@ -834,10 +849,6 @@ class YOLOFHead(AnchorHead):
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
 
-        # ll = labels[label_weights > 0]
-        # ll = ll[ll != 80]
-        # print('---l', ll)
-
         # cls loss
         gt_classes_target = torch.zeros_like(cls_score)
         valid_idxs = (label_weights > 0) & (labels != 80)
@@ -849,7 +860,7 @@ class YOLOFHead(AnchorHead):
             gamma=2.0,
             reduction='sum',
         )
-        loss_cls = loss_cls / num_total_samples
+        loss_cls = loss_cls / max(num_total_samples, 1)
         # loss_cls = self.loss_cls(
         #     cls_score, labels, label_weights, avg_factor=num_total_samples)
 
@@ -1023,7 +1034,6 @@ class YOLOFHead(AnchorHead):
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
 
         pos_inds = sampling_result.pos_inds
-        # print('---', pos_inds)
         neg_inds = sampling_result.neg_inds
         if len(pos_inds) > 0:
             pos_bbox_targets = sampling_result.pos_gt_bboxes
@@ -1048,13 +1058,13 @@ class YOLOFHead(AnchorHead):
                 target_boxes)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
-    def loss(self,
-             cls_scores,
-             bbox_preds,
-             gt_bboxes,
-             gt_labels,
-             img_metas,
-             gt_bboxes_ignore=None):
+    def loss_d2(self,
+                cls_scores,
+                bbox_preds,
+                gt_bboxes,
+                gt_labels,
+                img_metas,
+                gt_bboxes_ignore=None):
         """Compute losses of the head.
 
         Args:
@@ -1088,8 +1098,6 @@ class YOLOFHead(AnchorHead):
         gt_instances = [
             Instances(gt_bboxes[i], gt_labels[i]) for i in range(num_images)
         ]
-        # gt_instances = [x["instances"].to(self.device) for x in
-        #                 batched_inputs]
 
         indices = self.get_ground_truth(anchors, pred_anchor_deltas,
                                         gt_instances)
@@ -1097,7 +1105,6 @@ class YOLOFHead(AnchorHead):
                              pred_anchor_deltas)
 
         return losses
-        # return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
 
     @torch.no_grad()
     def get_ground_truth(self, anchors, bbox_preds, targets):
@@ -1195,5 +1202,5 @@ class YOLOFHead(AnchorHead):
 
         return {
             'loss_cls': loss_cls / max(1, num_foreground),
-            'loss_box_reg': loss_box_reg / max(1, num_foreground),
+            'loss_bbox': loss_box_reg / max(1, num_foreground),
         }

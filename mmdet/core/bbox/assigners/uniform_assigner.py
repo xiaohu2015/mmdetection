@@ -74,10 +74,6 @@ class UniformAssigner(BaseAssigner):
         pred_max_overlaps, _ = pred_overlaps.max(dim=1)
         anchor_max_overlaps, _ = anchor_overlaps.max(dim=0)
 
-        assigned_gt_inds = bbox_pred.new_full((num_bboxes, ),
-                                              0,
-                                              dtype=torch.long)
-
         ignore_idx = pred_max_overlaps > self.neg_ignore_thresh
         assigned_gt_inds[ignore_idx] = -1
 
