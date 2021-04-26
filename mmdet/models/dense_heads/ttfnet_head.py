@@ -8,8 +8,19 @@ from mmcv.ops import ModulatedDeformConv2dPack
 from mmcv.runner import force_fp32
 
 from mmdet.core import multi_apply
-from ..builder import HEADS
+from ..builder import HEADS, build_loss
 from .anchor_head import AnchorHead
+
+
+def bbox_areas(bboxes, keep_axis=False):
+    x_min, y_min, x_max, y_max = bboxes[:, 0], bboxes[:,
+                                                      1], bboxes[:,
+                                                                 2], bboxes[:,
+                                                                            3]
+    areas = (y_max - y_min + 1) * (x_max - x_min + 1)
+    if keep_axis:
+        return areas[:, None]
+    return areas
 
 
 @HEADS.register_module()
@@ -24,7 +35,7 @@ class TTFNetHead(AnchorHead):
                  wh_conv=64,
                  hm_head_conv_num=2,
                  wh_head_conv_num=2,
-                 num_classes=81,
+                 num_classes=80,
                  shortcut_kernel=3,
                  norm_cfg=dict(type='BN'),
                  shortcut_cfg=(1, 2, 3),
@@ -37,9 +48,17 @@ class TTFNetHead(AnchorHead):
                  hm_weight=1.,
                  wh_weight=5.,
                  max_objs=128,
+                 loss_heatmap=dict(
+                     type='GaussianFocalLoss',
+                     alpha=2.0,
+                     gamma=4.0,
+                     loss_weight=1),
+                 loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
                  train_cfg=None,
                  test_cfg=None):
         super(AnchorHead, self).__init__()
+        self.loss_heatmap = build_loss(loss_heatmap)
+        self.loss_bbox = build_loss(loss_bbox)
         assert len(planes) in [2, 3, 4]
         shortcut_num = min(len(inplanes) - 1, len(planes))
         assert shortcut_num == len(shortcut_cfg)
@@ -61,7 +80,7 @@ class TTFNetHead(AnchorHead):
         self.fp16_enabled = False
 
         self.down_ratio = base_down_ratio // 2**len(planes)
-        self.num_fg = num_classes - 1
+        self.num_fg = num_classes
         self.wh_planes = 4 if wh_agnostic else 4 * self.num_fg
         self.base_loc = None
 
@@ -298,14 +317,10 @@ class TTFNetHead(AnchorHead):
              gt_bboxes,
              gt_labels,
              img_metas,
-             cfg,
              gt_bboxes_ignore=None):
         all_targets = self.target_generator(gt_bboxes, gt_labels, img_metas)
         hm_loss, wh_loss = self.loss_calc(pred_heatmap, pred_wh, *all_targets)
-        return {
-            'losses/ttfnet_loss_heatmap': hm_loss,
-            'losses/ttfnet_loss_wh': wh_loss
-        }
+        return {'ttfnet_loss_heatmap': hm_loss, 'ttfnet_loss_wh': wh_loss}
 
     def _topk(self, scores, topk=20):
         """Get top k positions from heatmap.
@@ -524,7 +539,14 @@ class TTFNetHead(AnchorHead):
         """
         H, W = pred_hm.shape[2:]
         pred_hm = torch.clamp(pred_hm.sigmoid_(), min=1e-4, max=1 - 1e-4)
-        hm_loss = ct_focal_loss(pred_hm, heatmap) * self.hm_weight
+
+        hm_loss = self.loss_heatmap(
+            pred_hm,
+            heatmap,
+            weight=self.hm_weight,
+            avg_factor=max(1,
+                           heatmap.eq(1).sum()))
+        # hm_loss = ct_focal_loss(pred_hm, heatmap) * self.hm_weight
 
         mask = wh_weight.view(-1, H, W)
         avg_factor = mask.sum() + 1e-4
@@ -551,8 +573,13 @@ class TTFNetHead(AnchorHead):
                                dim=1).permute(0, 2, 3, 1)
         # (batch, h, w, 4)
         boxes = box_target.permute(0, 2, 3, 1)
-        wh_loss = giou_loss(
-            pred_boxes, boxes, mask, avg_factor=avg_factor) * self.wh_weight
+        wh_loss = self.loss_bbox(
+            pred_boxes,
+            boxes,
+            mask[..., None].expand_as(pred_boxes),
+            avg_factor=avg_factor) * self.wh_weight
+        # wh_loss = giou_loss(
+        #     pred_boxes, boxes, mask, avg_factor=avg_factor) * self.wh_weight
 
         return hm_loss, wh_loss
 

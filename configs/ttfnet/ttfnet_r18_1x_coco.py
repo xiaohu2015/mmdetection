@@ -22,7 +22,7 @@ model = dict(
         wh_conv=64,
         hm_head_conv_num=2,
         wh_head_conv_num=1,
-        num_classes=81,
+        num_classes=80,
         wh_offset_base=16,
         wh_agnostic=True,
         wh_gaussian=True,
@@ -31,8 +31,7 @@ model = dict(
         alpha=0.54,
         hm_weight=1.,
         wh_weight=5.),
-    train_cfg=dict(
-        assigner=None, allowed_border=-1, pos_weight=-1, debug=False),
+    train_cfg=None,
     test_cfg=dict(score_thr=0.01, max_per_img=100))
 
 # dataset settings
@@ -64,7 +63,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=16,
+    samples_per_gpu=16,
     workers_per_gpu=2,
     train=dict(pipeline=train_pipeline),
     val=dict(pipeline=test_pipeline),
@@ -76,7 +75,7 @@ optimizer = dict(
     lr=0.016,
     momentum=0.9,
     weight_decay=0.0001,
-    paramwise_options=dict(bias_lr_mult=2., bias_decay_mult=0.))
+    paramwise_cfg=dict(bias_lr_mult=2., bias_decay_mult=0.))
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
