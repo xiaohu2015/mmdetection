@@ -25,6 +25,7 @@ from .scnet import SCNet
 from .single_stage import SingleStageDetector
 from .sparse_rcnn import SparseRCNN
 from .trident_faster_rcnn import TridentFasterRCNN
+from .ttfnet import TTFNet
 from .two_stage import TwoStageDetector
 from .vfnet import VFNet
 from .yolact import YOLACT
@@ -37,5 +38,5 @@ __all__ = [
     'RetinaNet', 'FCOS', 'GridRCNN', 'MaskScoringRCNN', 'RepPointsDetector',
     'FOVEA', 'FSAF', 'NASFCOS', 'PointRend', 'GFL', 'CornerNet', 'PAA',
     'YOLOV3', 'YOLACT', 'VFNet', 'DETR', 'TridentFasterRCNN', 'SparseRCNN',
-    'SCNet', 'AutoAssign'
+    'SCNet', 'AutoAssign', 'TTFNet'
 ]
