@@ -237,8 +237,8 @@ class Resize(object):
             bboxes = results[key] * results['scale_factor']
             if self.bbox_clip_border:
                 img_shape = results['img_shape']
-                bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, img_shape[1])
-                bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0])
+                bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, img_shape[1] - 1)
+                bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0] - 1)
             results[key] = bboxes
 
     def _resize_masks(self, results):
@@ -396,8 +396,8 @@ class RandomFlip(object):
         flipped = bboxes.copy()
         if direction == 'horizontal':
             w = img_shape[1]
-            flipped[..., 0::4] = w - bboxes[..., 2::4]
-            flipped[..., 2::4] = w - bboxes[..., 0::4]
+            flipped[..., 0::4] = w - bboxes[..., 2::4] - 1
+            flipped[..., 2::4] = w - bboxes[..., 0::4] - 1
         elif direction == 'vertical':
             h = img_shape[0]
             flipped[..., 1::4] = h - bboxes[..., 3::4]

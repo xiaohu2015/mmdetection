@@ -141,7 +141,8 @@ class CocoDataset(CustomDataset):
                 continue
             if ann['category_id'] not in self.cat_ids:
                 continue
-            bbox = [x1, y1, x1 + w, y1 + h]
+            # bbox = [x1, y1, x1 + w, y1 + h]
+            bbox = [x1, y1, x1 + w - 1, y1 + h - 1]
             if ann.get('iscrowd', False):
                 gt_bboxes_ignore.append(bbox)
             else:
@@ -188,8 +189,8 @@ class CocoDataset(CustomDataset):
         return [
             _bbox[0],
             _bbox[1],
-            _bbox[2] - _bbox[0],
-            _bbox[3] - _bbox[1],
+            _bbox[2] - _bbox[0] + 1,
+            _bbox[3] - _bbox[1] + 1,
         ]
 
     def _proposal2json(self, results):

@@ -454,7 +454,8 @@ class TTFNetHead(AnchorHead):
 
         # larger boxes have lower priority than small boxes.
         for k in range(boxes_ind.shape[0]):
-            cls_id = gt_labels[k] - 1
+            # cls_id = gt_labels[k] - 1
+            cls_id = gt_labels[k]
 
             fake_heatmap = fake_heatmap.zero_()
             self.draw_truncate_gaussian(fake_heatmap, ct_ints[k],
@@ -578,8 +579,6 @@ class TTFNetHead(AnchorHead):
             boxes,
             mask[..., None].expand_as(pred_boxes),
             avg_factor=avg_factor) * self.wh_weight
-        # wh_loss = giou_loss(
-        #     pred_boxes, boxes, mask, avg_factor=avg_factor) * self.wh_weight
 
         return hm_loss, wh_loss
 
