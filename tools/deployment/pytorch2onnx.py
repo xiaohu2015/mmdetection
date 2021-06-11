@@ -31,16 +31,11 @@ def pytorch2onnx(config_path,
     }
 
     # prepare original model and meta for verifying the onnx model
-    orig_model = build_model_from_cfg(config_path, checkpoint_path)
+    orig_model = build_model_from_cfg(config_path, checkpoint_path, verify)
     one_img, one_meta = preprocess_example_input(input_config)
     model, tensor_data = generate_inputs_and_wrap_model(
-        config_path, checkpoint_path, input_config)
+        config_path, checkpoint_path, input_config, verify)
     output_names = ['boxes']
-    # if model.with_bbox:
-    #     output_names.append('labels')
-    # if model.with_mask:
-    #     output_names.append('masks')
-
     torch.onnx.export(
         model,
         tensor_data,
@@ -157,7 +152,7 @@ def parse_args():
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--input-img', type=str, help='Images for input')
     parser.add_argument('--show', action='store_true', help='show onnx graph')
-    parser.add_argument('--output-file', type=str, default='tmp.onnx')
+    parser.add_argument('--output-file', type=str, default='det.onnx')
     parser.add_argument('--opset-version', type=int, default=11)
     parser.add_argument(
         '--test-img', type=str, default=None, help='Images for test')

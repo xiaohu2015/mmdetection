@@ -6,7 +6,7 @@ import torch
 from mmcv.runner import load_checkpoint
 
 
-def generate_inputs_and_wrap_model(config_path, checkpoint_path, input_config):
+def generate_inputs_and_wrap_model(config_path, checkpoint_path, input_config, verify):
     """Prepare sample input and wrap model for ONNX export.
 
     The ONNX export API only accept args, and all inputs should be
@@ -37,7 +37,7 @@ def generate_inputs_and_wrap_model(config_path, checkpoint_path, input_config):
             the model while exporting.
     """
 
-    model = build_model_from_cfg(config_path, checkpoint_path)
+    model = build_model_from_cfg(config_path, checkpoint_path, verify)
     one_img, one_meta = preprocess_example_input(input_config)
     tensor_data = [one_img]
     model.forward = partial(
@@ -57,7 +57,7 @@ def generate_inputs_and_wrap_model(config_path, checkpoint_path, input_config):
     return model, tensor_data
 
 
-def build_model_from_cfg(config_path, checkpoint_path):
+def build_model_from_cfg(config_path, checkpoint_path,verify=True):
     """Build a model from config and load the given checkpoint.
 
     Args:
@@ -77,6 +77,9 @@ def build_model_from_cfg(config_path, checkpoint_path):
         import_modules_from_strings(**cfg['custom_imports'])
     cfg.model.pretrained = None
     cfg.data.test.test_mode = True
+
+    if not verify:
+        cfg.model.test_cfg.with_onnx = True
 
     # build the model
     cfg.model.train_cfg = None

@@ -1,7 +1,7 @@
 _base_ = '../_base_/default_runtime.py'
 
 dataset_type = 'CocoDataset'
-data_root = '/home/hha/dataset/project/'
+data_root = 'project_test/'
 classes = ('out-ok', 'out-ng')
 
 model = dict(
@@ -20,7 +20,7 @@ model = dict(
         featmap_strides=[16],
         loss_cls=dict(
             type='CrossEntropyLoss',
-            use_sigmoid=False,
+            use_sigmoid=False,  # note. diff yolov3
             loss_weight=1.0,
             reduction='sum'),
         loss_conf=dict(
@@ -42,6 +42,7 @@ model = dict(
             neg_iou_thr=0.5,
             min_pos_iou=0)),
     test_cfg=dict(
+        with_onnx=False,
         nms_pre=1000,
         min_bbox_size=0,
         score_thr=0.05,
@@ -91,6 +92,7 @@ albu_train_transforms = [
 train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
+    # size
     dict(type='Resize', img_scale=(448, 320), keep_ratio=False),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(
@@ -121,7 +123,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(448, 320),
+        img_scale=(448, 320), # size
         flip=False,
         transforms=[
             dict(type='Resize', keep_ratio=False),
@@ -134,8 +136,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=12,
-    workers_per_gpu=2,
+    samples_per_gpu=12,  # base you gpu
+    workers_per_gpu=2,  # base you cpu
     train=dict(
         type=dataset_type,
         classes=classes,
@@ -157,7 +159,7 @@ data = dict(
 
 # optimizer
 optimizer = dict(type='SGD', lr=0.001, momentum=0.9)
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))  # importent
+optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))  # important
 # learning policy
 lr_config = dict(
     policy='step',
@@ -176,5 +178,5 @@ log_config = dict(
         # dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=3,max_keep_ckpts=5)
+checkpoint_config = dict(interval=3, max_keep_ckpts=5)
 

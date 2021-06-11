@@ -15,8 +15,8 @@ def _generate_batch_data(sampler, batch_size=5):
 
 
 if __name__ == '__main__':
-    root_path = '/home/hha/dataset/project/images'
-    out_dir = '/home/hha/dataset/project/'
+    root_path = '/project/images'
+    out_dir = '/project/'
 
     save_name = 'train.json'
     mmcv.mkdir_or_exist(osp.join(out_dir, 'annotations'))
