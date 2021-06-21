@@ -25,7 +25,7 @@ model = dict(
 img_norm_cfg = dict(
     mean=[123.68, 116.779, 103.939], std=[58.393, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
-    dict(type='LoadImageFromFile'),
+    dict(type='LoadImageFromWebcam'),
     dict(
         type='LoadAnnotations',
         with_bbox=True,
@@ -44,7 +44,7 @@ train_pipeline = [
     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks']),
 ]
 test_pipeline = [
-    dict(type='LoadImageFromFile'),
+    dict(type='LoadImageFromWebcam'),
     dict(
         type='MultiScaleFlipAug',
         img_scale=(1333, 800),

@@ -3,11 +3,11 @@ _base_ = [
     '../_base_/schedules/schedule_2x.py', '../_base_/default_runtime.py'
 ]
 # dataset settings
-dataset_type = 'CocoDataset'
+dataset_type = 'DummyDataset'
 data_root = 'data/coco/'
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[1, 1, 1], to_rgb=True)
 train_pipeline = [
-    dict(type='LoadImageFromFile', to_float32=True),
+    dict(type='LoadImageFromWebcam', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PhotoMetricDistortion',
@@ -31,7 +31,7 @@ train_pipeline = [
     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
 ]
 test_pipeline = [
-    dict(type='LoadImageFromFile'),
+    dict(type='LoadImageFromWebcam'),
     dict(
         type='MultiScaleFlipAug',
         img_scale=(300, 300),
