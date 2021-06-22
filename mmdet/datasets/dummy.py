@@ -151,4 +151,4 @@ class DummyDataset(CocoDataset):
         if self.test_mode:
             return 100
         else:
-            return 10000
+            return 50000
