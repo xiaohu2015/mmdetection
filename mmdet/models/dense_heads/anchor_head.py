@@ -8,6 +8,47 @@ from mmdet.core import (anchor_inside_flags, build_anchor_generator,
 from ..builder import HEADS, build_loss
 from .base_dense_head import BaseDenseHead
 from .dense_test_mixins import BBoxTestMixin
+from mmcv.ops import batched_nms
+
+
+def nonzero_tuple(x):
+    """
+    A 'as_tuple=True' version of torch.nonzero to support torchscript.
+    because of https://github.com/pytorch/pytorch/issues/38718
+    """
+    if torch.jit.is_scripting():
+        if x.dim() == 0:
+            return x.unsqueeze(0).nonzero().unbind(1)
+        return x.nonzero().unbind(1)
+    else:
+        return x.nonzero(as_tuple=True)
+
+
+def cat(tensors, dim: int = 0):
+    """
+    Efficient version of torch.cat that avoids a copy if there is only a single element in a list
+    """
+    assert isinstance(tensors, (list, tuple))
+    if len(tensors) == 1:
+        return tensors[0]
+    return torch.cat(tensors, dim)
+
+
+from torchvision.ops import boxes as box_ops
+
+
+def batched_nms1(
+        boxes: torch.Tensor, scores: torch.Tensor, idxs: torch.Tensor, iou_threshold: float
+):
+    """
+    Same as torchvision.ops.boxes.batched_nms, but safer.
+    """
+    assert boxes.shape[-1] == 4
+    # TODO may need better strategy.
+    # Investigate after having a fully-cuda NMS op.
+    if len(boxes) < 40000:
+        # fp16 does not have enough range for batched NMS
+        return box_ops.batched_nms(boxes.float(), scores, idxs, iou_threshold)
 
 
 @HEADS.register_module()
@@ -210,7 +251,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
                                            img_meta['img_shape'][:2],
                                            self.train_cfg.allowed_border)
         if not inside_flags.any():
-            return (None, ) * 7
+            return (None,) * 7
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
 
@@ -223,7 +264,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         num_valid_anchors = anchors.shape[0]
         bbox_targets = torch.zeros_like(anchors)
         bbox_weights = torch.zeros_like(anchors)
-        labels = anchors.new_full((num_valid_anchors, ),
+        labels = anchors.new_full((num_valid_anchors,),
                                   self.num_classes,
                                   dtype=torch.long)
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
@@ -362,7 +403,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         res = (labels_list, label_weights_list, bbox_targets_list,
                bbox_weights_list, num_total_pos, num_total_neg)
         if return_sampling_results:
-            res = res + (sampling_results_list, )
+            res = res + (sampling_results_list,)
         for i, r in enumerate(rest_results):  # user-added return values
             rest_results[i] = images_to_levels(r, num_level_anchors)
 
@@ -560,10 +601,10 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         result_list = []
         for img_id in range(len(img_metas)):
             cls_score_list = [
-                cls_scores[i][img_id].detach() for i in range(num_levels)
+                cls_scores[i][img_id] for i in range(num_levels)
             ]
             bbox_pred_list = [
-                bbox_preds[i][img_id].detach() for i in range(num_levels)
+                bbox_preds[i][img_id] for i in range(num_levels)
             ]
             img_shape = img_metas[img_id]['img_shape']
             scale_factor = img_metas[img_id]['scale_factor']
@@ -582,15 +623,15 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
             result_list.append(proposals)
         return result_list
 
-    def _get_bboxes_single(self,
-                           cls_score_list,
-                           bbox_pred_list,
-                           mlvl_anchors,
-                           img_shape,
-                           scale_factor,
-                           cfg,
-                           rescale=False,
-                           with_nms=True):
+    def _get_bboxes_single1(self,
+                            cls_score_list,
+                            bbox_pred_list,
+                            mlvl_anchors,
+                            img_shape,
+                            scale_factor,
+                            cfg,
+                            rescale=False,
+                            with_nms=True):
         """Transform outputs for a single batch item into bbox predictions.
 
         Args:
@@ -667,6 +708,103 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
             return det_bboxes, det_labels
         else:
             return mlvl_bboxes, mlvl_scores
+
+    def _get_bboxes_single(self,
+                           cls_score_list,
+                           bbox_pred_list,
+                           mlvl_anchors,
+                           img_shape,
+                           scale_factor,
+                           cfg,
+                           rescale=False,
+                           with_nms=True):
+        """Transform outputs for a single batch item into bbox predictions.
+
+        Args:
+            cls_score_list (list[Tensor]): Box scores for a single scale level
+                Has shape (num_anchors * num_classes, H, W).
+            bbox_pred_list (list[Tensor]): Box energies / deltas for a single
+                scale level with shape (num_anchors * 4, H, W).
+            mlvl_anchors (list[Tensor]): Box reference for a single scale level
+                with shape (num_total_anchors, 4).
+            img_shape (tuple[int]): Shape of the input image,
+                (height, width, 3).
+            scale_factor (ndarray): Scale factor of the image arange as
+                (w_scale, h_scale, w_scale, h_scale).
+            cfg (mmcv.Config): Test / postprocessing configuration,
+                if None, test_cfg would be used.
+            rescale (bool): If True, return boxes in original image space.
+                Default: False.
+            with_nms (bool): If True, do nms before return boxes.
+                Default: True.
+
+        Returns:
+            Tensor: Labeled boxes in shape (n, 5), where the first 4 columns
+                are bounding box positions (tl_x, tl_y, br_x, br_y) and the
+                5-th column is a score between 0 and 1.
+        """
+        cfg = self.test_cfg if cfg is None else cfg
+        assert len(cls_score_list) == len(bbox_pred_list) == len(mlvl_anchors)
+        nms_pre = cfg.get('nms_pre', -1)
+
+        boxes_all = []
+        scores_all = []
+        class_idxs_all = []
+
+        # Iterate over every feature level
+        for box_cls_i, box_reg_i, anchors_i in zip(cls_score_list, bbox_pred_list, mlvl_anchors):
+            # (HxWxAxK,)
+            box_cls_i = box_cls_i.permute(1, 2, 0).reshape(-1, self.cls_out_channels)
+            predicted_prob = box_cls_i.flatten().sigmoid_()
+            box_reg_i = box_reg_i.permute(1, 2, 0).reshape(-1, 4)
+
+            # Apply two filtering below to make NMS faster.
+            # 1. Keep boxes with confidence score higher than threshold
+            keep_idxs = predicted_prob > cfg.score_thr
+            predicted_prob = predicted_prob[keep_idxs]
+            topk_idxs = nonzero_tuple(keep_idxs)[0]
+
+            # 2. Keep top k top scoring boxes only
+            num_topk = min(nms_pre, topk_idxs.size(0))
+            # torch.sort is actually faster than .topk (at least on GPUs)
+            predicted_prob, idxs = predicted_prob.sort(descending=True)
+            predicted_prob = predicted_prob[:num_topk]
+            topk_idxs = topk_idxs[idxs[:num_topk]]
+
+            anchor_idxs = topk_idxs // self.num_classes
+            classes_idxs = topk_idxs % self.num_classes
+
+            box_reg_i = box_reg_i[anchor_idxs]
+            anchors_i = anchors_i[anchor_idxs]
+
+            # predicted_boxes = self.bbox_coder.decode(
+            #     anchors_i, box_reg_i, max_shape=img_shape)
+            predicted_boxes = self.bbox_coder.decode(anchors_i, box_reg_i)
+
+            boxes_all.append(predicted_boxes)
+            scores_all.append(predicted_prob)
+            class_idxs_all.append(classes_idxs)
+
+        boxes_all, scores_all, class_idxs_all = [
+            cat(x) for x in [boxes_all, scores_all, class_idxs_all]
+        ]
+        if rescale:
+            boxes_all /= boxes_all.new_tensor(scale_factor)
+
+        use_mm = True
+        if use_mm:
+            dets, keep = batched_nms(boxes_all, scores_all, class_idxs_all, cfg.nms)
+            dets = dets[:cfg.max_per_img]
+            class_idxs_all = class_idxs_all[keep][:cfg.max_per_img]
+        else:
+            keep = batched_nms1(boxes_all, scores_all, class_idxs_all, cfg.nms['iou_threshold'])
+            keep = keep[: cfg.max_per_img]
+            class_idxs_all = class_idxs_all[keep]
+            scores_all = scores_all[keep]
+            boxes_all = boxes_all[keep]
+            dets = torch.cat([boxes_all, scores_all[:, None]], dim=1)
+
+        return dets, class_idxs_all
 
     def aug_test(self, feats, img_metas, rescale=False):
         """Test function with test time augmentation.
